@@ -60,6 +60,17 @@ opencli 8891 list --power 4 --min-price 50 --max-price 100
 opencli 8891 list --power 4,3
 ```
 
+**List output fields** (enhanced with time-series signals)
+
+`rank, id, title, price, year, mileage, location, updated_ago, view_count, current_viewers, tagline, promo, badges, url`
+
+- `view_count` — cumulative view count (integer)
+- `current_viewers` — live concurrent viewers, e.g. `26人在看`
+- `updated_ago` — relative timestamp, e.g. `7天前更新`
+- `badges` — trust badges, e.g. `精選,真實車源`
+
+These fields feed the time-series tables in `db/` (see below).
+
 **Detail output fields**
 
 `id`, `title`, `price`, `msrp`, `brand`, `model`, `year`, `license_date`, `mileage`, `fuel`, `ev_range`, `transmission`, `drivetrain`, `doors_seats`, `location`, `seller`, `seller_type` (車主自售/車商), `conditions`, `highlights`, `photo_count`, `photos`, `url`
@@ -89,3 +100,18 @@ opencli 8891 list --power 4,3
 | seller | `[class*="seller-intro"] h2 p` | |
 | personal flag | `[class*="is-personal"]` | Dealer if missing |
 | photos | `img[src*="/s{id}/"]` | Car-specific path only |
+
+## Local database (optional)
+
+See [`db/`](db/) for a Python script that syncs OpenCLI output into a local SQLite database with price history, view-count trends, and inventory tracking.
+
+```bash
+cd db
+python sync.py --power 4 --max-price 150 --in-store-only
+# → writes to ~/8891-db/cars.db
+```
+
+Captures time-series signals (price history, view-count growth, inventory changes).
+Queries include: price drops over time, biggest MSRP discounts, view-count growth, best value cars.
+See [`db/queries.sql`](db/queries.sql) for 13 ready-made query examples, and [`db/README.md`](db/README.md) for full docs.
+

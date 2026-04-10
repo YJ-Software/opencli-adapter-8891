@@ -24,7 +24,7 @@ cli({
     { name: 'max-price', type: 'int', help: '最高價格（單位：萬）' },
     { name: 'in-store-only', type: 'bool', default: false, help: '排除不在店車輛' },
   ],
-  columns: ['rank', 'title', 'price', 'year', 'mileage', 'location', 'url'],
+  columns: ['rank', 'id', 'title', 'price', 'year', 'mileage', 'location', 'updated_ago', 'view_count', 'current_viewers', 'url'],
   func: async (page, kwargs) => {
     const startPage = Number(kwargs.page) || 1;
     const limit = Number(kwargs.limit) || 20;
@@ -57,6 +57,7 @@ cli({
 
       const pageRows = await page.evaluate(`(() => {
         const cards = document.querySelectorAll('a.row-item');
+        const text = (el) => (el && el.textContent ? el.textContent.trim() : null);
         return Array.from(cards).map((card) => {
           const titleEl = card.querySelector('[class*="ib-it-text"]');
           const priceEl = card.querySelector('[class*="ib-price"] b');
@@ -72,13 +73,33 @@ cli({
             const t = priceEl.textContent.trim();
             priceText = /^[\\d.]+$/.test(t) ? t + '萬' : t;
           }
+          // view_count 藏在 .ii-item[2] 的 .Red 裡（如 "1912次瀏覽"）
+          const viewEl = infoItems[2]?.querySelector('.Red');
+          const viewCount = viewEl ? parseInt(text(viewEl) || '0', 10) : null;
+          // current_viewers 從 "26人在看" / "99+人在看"
+          const viewersEl = card.querySelector('[class*="set-super-top-label-desc"]');
+          const currentViewers = text(viewersEl);
+          // 賣點 / promo
+          const promoEl = card.querySelector('[class*="promotion-tag"] p');
+          // 信任標章
+          const trustBadgeEl = card.querySelector('[class*="set-super-top-label"] img');
+          const auditLabelEl = card.querySelector('[class*="audit-label"] img');
+          const badges = [];
+          if (trustBadgeEl && trustBadgeEl.getAttribute('alt')) badges.push(trustBadgeEl.getAttribute('alt'));
+          if (auditLabelEl && auditLabelEl.getAttribute('alt')) badges.push(auditLabelEl.getAttribute('alt'));
           return {
             id: idMatch ? idMatch[1] : null,
-            title: (titleEl && titleEl.textContent ? titleEl.textContent.trim() : null),
+            title: text(titleEl),
             price: priceText,
-            year: (icons[0] && icons[0].textContent ? icons[0].textContent.trim() : null),
-            mileage: (icons[1] && icons[1].textContent ? icons[1].textContent.trim() : null),
-            location: (infoItems[0] && infoItems[0].textContent ? infoItems[0].textContent.trim() : null),
+            year: text(icons[0]),
+            mileage: text(icons[1]),
+            location: text(infoItems[0]),
+            updated_ago: text(infoItems[1]),
+            view_count: viewCount,
+            current_viewers: currentViewers,
+            tagline: text(card.querySelector('[class*="ib-info-oldtitle"]')),
+            promo: text(promoEl),
+            badges: badges.join(','),
             url: absUrl.split('?')[0],
           };
         });
@@ -92,11 +113,18 @@ cli({
 
     return rows.slice(0, limit).map((item, i) => ({
       rank: i + 1,
+      id: item.id || '',
       title: item.title || '',
       price: item.price || '',
       year: item.year || '',
       mileage: item.mileage || '',
       location: item.location || '',
+      updated_ago: item.updated_ago || '',
+      view_count: item.view_count ?? '',
+      current_viewers: item.current_viewers || '',
+      tagline: item.tagline || '',
+      promo: item.promo || '',
+      badges: item.badges || '',
       url: item.url || '',
     }));
   },
