@@ -29,8 +29,25 @@ Source: https://auto.8891.com.tw/
 |---------|-------------|
 | `8891 electric` | Electric-car listings (fuel filter = 純電車) |
 | `8891 list` | Generic listing with filters: `--power`, `--min-price`, `--max-price`, `--in-store-only` |
+| `8891 detail` | Single car full info: spec, condition, highlights, photos, seller |
 
-**Examples**
+**Workflow: two-stage crawl**
+
+Because each detail page is ~4 seconds, we use a two-stage approach:
+
+1. Use `list` to get all matching car IDs (fast, ~30s for 245 cars).
+2. Feed IDs into `detail` when you need full info (~4s per car).
+
+```bash
+# Stage 1 — crawl all matching cars to get IDs
+opencli 8891 list --power 4 --max-price 150 --in-store-only --limit 1000
+
+# Stage 2 — fetch full detail for specific cars
+opencli 8891 detail --id 4600208
+opencli 8891 detail --ids 4600208,4632355,4635078
+```
+
+**List examples**
 
 ```bash
 # Electric cars under 150萬, in-store only
@@ -43,6 +60,12 @@ opencli 8891 list --power 4 --min-price 50 --max-price 100
 opencli 8891 list --power 4,3
 ```
 
+**Detail output fields**
+
+`id`, `title`, `price`, `msrp`, `brand`, `model`, `year`, `license_date`, `mileage`, `fuel`, `ev_range`, `transmission`, `drivetrain`, `doors_seats`, `location`, `seller`, `seller_type` (車主自售/車商), `conditions`, `highlights`, `photo_count`, `photos`, `url`
+
+> **Note:** The detail page only pre-loads 3~15 thumbnail photos; the full gallery lazy-loads when you click. First version captures what's visible.
+
 **Known URL params** (discovered via browser exploration)
 
 | Param | Format | Notes |
@@ -51,3 +74,18 @@ opencli 8891 list --power 4,3
 | `price=min_max` | TWD | e.g. `0_1500000` = up to 150萬 |
 | `exsits=1` | flag | Exclude not-in-store (note: official spelling is `exsits`, not `exists`) |
 | `page=N` | int | 40 items per page |
+
+**Detail page selectors** (stable substring matches on hashed CSS-module classes)
+
+| Field | Selector | Notes |
+|-------|----------|-------|
+| title | `h1` | |
+| price | `[class*="_price-text"]` + `[class*="_price-unit"]` | |
+| msrp | `[class*="newcar-price"]` | Extract `X.X萬` |
+| brand/model | `[class*="bread-crumbs"] a` | Last two car links |
+| spec grid | `[class*="info-grid"] [class*="info-item"]` | label/value pairs |
+| conditions | `[class*="vehicle-condition-item"] img[alt]` | |
+| highlights | `[class*="newcar-equipment-item"] p` | |
+| seller | `[class*="seller-intro"] h2 p` | |
+| personal flag | `[class*="is-personal"]` | Dealer if missing |
+| photos | `img[src*="/s{id}/"]` | Car-specific path only |
