@@ -63,6 +63,7 @@ Every sidebar filter, verified via browser click + flight-data inspection.
 | `color[]=N` | int array | 0=白 1=紅 2=銀 3=灰 4=黑 5=黃 8=橙 9=綠 10=藍 11=紫 12=其他 13=棕 15=粉 | 車色 (IDs 6/7/14 missing!) |
 | `page=N` | int | 40 items per page | 分頁 |
 | `key=TEXT` | string (URL-encoded) | Free-text search; echoed in `selectData.keyword`; supports Chinese | 關鍵字搜尋 |
+| `sort=FIELD-DIR` | string | 4 fields × 2 dirs = 8: `price-asc`, `price-desc`, `year-asc`, `year-desc`, `mile-asc`, `mile-desc`, `gas-asc`, `gas-desc`. Echoed in Next.js `urlParts`, not `selectData.sort` | 排序 |
 | `exsits=1` | bool | **typo in source** — `exsits` not `exists` | 排除不在店 |
 | `personal=1` | bool | | 個人自售 |
 | `yx=1` | bool | | 8891 嚴選 |
@@ -139,6 +140,21 @@ Opencli's adapter scan (`node_modules/@jackwener/opencli/dist/src/discovery.js`)
 1. **Fast path**: `cli-manifest.json` in package dir (built-in adapters only, 544 entries, 85 sites).
 2. **Fallback**: `~/.opencli/clis/*/` filesystem scan. Only loads `.js`, explicitly warns + skips `.ts` (line ~175).
 3. **Plugins**: `~/.opencli/plugins/*/` (flat scan, same .js-only rule, line ~229).
+
+---
+
+## Client-side filters (no server-side support)
+
+Some things users ask for aren't exposed as URL filters. `list.ts` implements them client-side:
+
+### Mileage range (`--min-mileage` / `--max-mileage`)
+
+- 8891 has NO server-side mileage filter (only a sort option).
+- Filter is applied in the pagination loop AFTER parsing each page.
+- When `--max-mileage` is set and `--sort` is not, list.ts auto-injects `sort=mile-asc` so the pagination loop can early-exit when it hits a car whose km exceeds the cap.
+- `MAX_PAGES_SAFETY = 15` (~45s at 3s/page goto) to stay under opencli's 60s command timeout. Going higher risks TIMEOUT exit code 75.
+- `--min-mileage` alone does NOT auto-sort. With large inventory this can hit the page cap before finding matches. **Recommendation**: combine with `--brand` / `--year-from` / `--body` first to narrow the scan.
+- Helper `parseMileageKm()` mirrors `sync.py`'s `parse_mileage_km` — handles `"10.6萬公里"`, `"2700公里"`, `"1.73萬公里"` forms. Cars with price=電洽 typically have `mileage_km == null`; they're excluded when `--max-mileage` is set.
 
 ---
 
@@ -419,7 +435,8 @@ Rerun any time 8891 adds new brands/models. `list.ts` loads at module init via
 | `afbe6dd` | Final 6 filters (color + region groups + 4 toggles) → **100% sidebar coverage** |
 | `f36e222` | docs: README rewrite + CLAUDE.md technical reference |
 | `d43c74b` | `--search` free-text keyword filter (key= URL param) |
-| TBD | Build pipeline (tsc .ts to .js) + commit .js artifacts (opencli v1.7.2 compat) |
+| `8b91817` | Build pipeline (tsc .ts to .js) + commit .js artifacts (opencli v1.7.2 compat) |
+| TBD | Client-side mileage filter + server-side sort (5 new flags; 28 total) |
 
 ---
 

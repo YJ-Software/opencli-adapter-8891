@@ -48,7 +48,7 @@ ln -s ~/opencli-adapters/clis/8891 ~/.opencli/clis/8891
 
 | Command | Description |
 |---------|-------------|
-| `opencli 8891 list` | Generic listing with **23 filters** — every sidebar option plus free-text search |
+| `opencli 8891 list` | Generic listing with **28 filters** — every sidebar option plus free-text search, mileage range, and sort |
 | `opencli 8891 detail` | Full per-car info — spec, condition, highlights, photos, seller |
 | `opencli 8891 electric` | Shortcut for 純電車 listings (kept for backward compat) |
 
@@ -64,7 +64,7 @@ opencli 8891 list --power 純電 --limit 3 --format json
 
 ## `8891 list` — full filter reference
 
-All 23 flags are combinable. Names accept Chinese / English / slugs.
+All 28 flags are combinable. Names accept Chinese / English / slugs.
 
 ### Free-text search
 
@@ -96,6 +96,16 @@ All 23 flags are combinable. Names accept Chinese / English / slugs.
 | `--max-age` / `--min-age` | years relative to now | `--max-age 3` (3 年以內) |
 | `--min-cc` / `--max-cc` | cc | `--min-cc 1600 --max-cc 2000` |
 | `--min-liter` / `--max-liter` | L | `--min-liter 1.6 --max-liter 2.0` |
+| `--min-mileage` / `--max-mileage` | km | `--max-mileage 50000` (client-side) |
+| `--min-mileage-wan` / `--max-mileage-wan` | 萬 km | `--max-mileage-wan 5` = 50000 km |
+
+> **Mileage filter note:** 8891 has no server-side mileage filter (only a sort option). `--max-mileage` is applied **client-side** after fetching — it auto-enables `sort=mile-asc` so pages can exit early when mileage exceeds the cap. `--min-mileage` alone has no auto-sort; narrow with `--brand` / `--year-from` / etc. first to keep scanning cheap. Page scan is capped at **15 pages** (~600 cars) to stay within opencli's 60s command timeout.
+
+### Sort
+
+| Flag | Values | Notes |
+|------|--------|-------|
+| `--sort` | `price` / `year` / `mile` / `gas`, optional `-asc`/`-desc` suffix | Default direction is `-asc`. Full list: `price-asc`, `price-desc`, `year-asc`, `year-desc`, `mile-asc`, `mile-desc`, `gas-asc`, `gas-desc` |
 
 **Mutual exclusions** (will throw with a clear error):
 - `--year-from/--year-to` vs `--max-age/--min-age` (both manipulate year range)
@@ -185,6 +195,26 @@ opencli 8891 list --search "Long Range" --max-price 150
 **Chinese keyword** — all Rolls-Royce listings (by Chinese brand name):
 ```bash
 opencli 8891 list --search 勞斯萊斯
+```
+
+**Low-mileage cars** — within 5萬 km:
+```bash
+opencli 8891 list --max-mileage-wan 5 --limit 20
+```
+
+**Tesla with 3-8萬 km** — narrow inventory first so client-side filter stays fast:
+```bash
+opencli 8891 list --brand tesla --power 純電   --min-mileage-wan 3 --max-mileage-wan 8
+```
+
+**Sort by price ascending** — cheapest cars first:
+```bash
+opencli 8891 list --sort price-asc --limit 20
+```
+
+**Newest Teslas** — sort by year descending:
+```bash
+opencli 8891 list --brand tesla --sort year-desc --limit 10
 ```
 
 ### The "mega combo" — 10 active filters at once

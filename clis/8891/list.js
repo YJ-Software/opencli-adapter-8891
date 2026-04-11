@@ -149,6 +149,34 @@ function resolveSeats(input) {
     }
     return n;
 }
+// ─── 排序 → sort=FIELD-DIRECTION ───
+// 8891 接受 4 field × 2 direction = 8 值
+const SORT_FIELDS = new Set(['price', 'year', 'mile', 'gas']);
+const SORT_DIRECTIONS = new Set(['asc', 'desc']);
+function resolveSort(input) {
+    const norm = input.toLowerCase().trim();
+    // Shorthand: "mile" → "mile-asc"
+    if (SORT_FIELDS.has(norm))
+        return norm + '-asc';
+    // Full form: "mile-asc"
+    const m = norm.match(/^([a-z]+)-(asc|desc)$/);
+    if (m && SORT_FIELDS.has(m[1]) && SORT_DIRECTIONS.has(m[2]))
+        return norm;
+    throw new Error(`Unknown --sort "${input}". Valid: price / year / mile / gas, ` +
+        `with optional -asc/-desc suffix. E.g. "mile-asc" / "price-desc" / "year" (→ year-asc)`);
+}
+// 把 "10.6萬公里" / "2700公里" 正規化成整數 km（跟 sync.py 的 parse_mileage_km 同步）
+function parseMileageKm(text) {
+    if (!text)
+        return null;
+    const w = text.match(/([\d.]+)\s*萬\s*公里/);
+    if (w)
+        return Math.round(parseFloat(w[1]) * 10000);
+    const k = text.match(/([\d,]+)\s*公里/);
+    if (k)
+        return parseInt(k[1].replace(/,/g, ''), 10);
+    return null;
+}
 // 5 種燃料類型：名稱 → 8891 power ID
 // 驗證方法：側欄點擊每個選項觀察 URL 變化；對 selectData 確認 label 對應
 const FUEL_LOOKUP = {
@@ -290,6 +318,14 @@ cli({
         { name: 'max-cc', type: 'int', help: '排氣量上限（cc）' },
         { name: 'min-liter', type: 'float', help: '排氣量下限（L），自動 × 1000 轉 cc' },
         { name: 'max-liter', type: 'float', help: '排氣量上限（L），自動 × 1000 轉 cc' },
+        // 里程範圍（客戶端 filter — 8891 沒有伺服器端 filter；用 km 或 萬km）
+        // 搭配 --sort mile-asc（或用 --max-mileage 自動觸發）可提前停止翻頁
+        { name: 'min-mileage', type: 'int', help: '里程下限（km）— 客戶端 filter' },
+        { name: 'max-mileage', type: 'int', help: '里程上限（km）— 客戶端 filter；若未指定 --sort 會自動用 sort=mile-asc 提前停頁' },
+        { name: 'min-mileage-wan', type: 'float', help: '里程下限（萬 km），例：--min-mileage-wan 1.5 = 15000 km' },
+        { name: 'max-mileage-wan', type: 'float', help: '里程上限（萬 km），例：--max-mileage-wan 5 = 50000 km' },
+        // 排序
+        { name: 'sort', type: 'string', help: '排序：price / year / mile / gas，可加 -asc/-desc（例：--sort mile-asc / price-desc）' },
         // 既有
         { name: 'power', type: 'string', help: '燃料：名稱或 ID，可多值逗號分隔。0=汽油 / 1=柴油 / 2=油電複合 / 3=瓦斯雙燃料 / 4=純電。例：--power 純電 / --power 2,4 / --power hybrid,ev' },
         { name: 'min-price', type: 'int', help: '最低價格（單位：萬）' },
@@ -300,7 +336,6 @@ cli({
     func: async (page, kwargs) => {
         const startPage = Number(kwargs.page) || 1;
         const limit = Number(kwargs.limit) || 20;
-        const pagesNeeded = Math.ceil(limit / 40);
         // --- 構 URL path（廠牌 / 車系）---
         let basePath = '/';
         if (kwargs.brand) {
@@ -456,9 +491,47 @@ cli({
             if (q)
                 params.push(`key=${encodeURIComponent(q)}`);
         }
+        // 里程範圍（客戶端 filter — 8891 沒伺服器端支援）
+        // 解析 km 或 萬km 兩種輸入
+        let minMileageKm = null;
+        let maxMileageKm = null;
+        if (kwargs['min-mileage'] != null)
+            minMileageKm = Number(kwargs['min-mileage']);
+        if (kwargs['max-mileage'] != null)
+            maxMileageKm = Number(kwargs['max-mileage']);
+        if (kwargs['min-mileage-wan'] != null) {
+            if (minMileageKm != null)
+                throw new Error('不能同時使用 --min-mileage 和 --min-mileage-wan');
+            minMileageKm = Math.round(Number(kwargs['min-mileage-wan']) * 10000);
+        }
+        if (kwargs['max-mileage-wan'] != null) {
+            if (maxMileageKm != null)
+                throw new Error('不能同時使用 --max-mileage 和 --max-mileage-wan');
+            maxMileageKm = Math.round(Number(kwargs['max-mileage-wan']) * 10000);
+        }
+        if (minMileageKm != null && maxMileageKm != null && minMileageKm > maxMileageKm) {
+            throw new Error(`--min-mileage (${minMileageKm}) 必須 ≤ --max-mileage (${maxMileageKm})`);
+        }
+        // 排序 + 自動優化：有 --max-mileage 又沒指定 --sort → 自動 mile-asc 以便提前停頁
+        let sortValue = null;
+        if (kwargs.sort) {
+            sortValue = resolveSort(String(kwargs.sort));
+        }
+        else if (maxMileageKm != null) {
+            sortValue = 'mile-asc';
+        }
+        if (sortValue)
+            params.push(`sort=${sortValue}`);
         const baseQuery = params.join('&');
         const rows = [];
-        for (let p = startPage; p < startPage + pagesNeeded; p++) {
+        // 分頁迴圈 — 重構以支援客戶端 filter
+        // 原本用 pagesNeeded 固定抓幾頁；改成持續抓到 limit 達標或沒資料
+        // MAX_PAGES_SAFETY：防 runaway + 避開 opencli 60s timeout。
+        // 每頁 page.goto 約 ~3s，15 頁 ≈ 45s 留空間給其他邏輯。
+        // 對大範圍 --min-mileage 查詢，建議用 --brand / --year-from 等縮小 inventory 再濾。
+        const MAX_PAGES_SAFETY = 15;
+        let exitEarly = false;
+        for (let p = startPage; p < startPage + MAX_PAGES_SAFETY && !exitEarly; p++) {
             const url = `https://auto.8891.com.tw${basePath}?${baseQuery}${baseQuery ? '&' : ''}page=${p}`;
             await page.goto(url, { waitUntil: 'domcontentloaded' });
             const pageRows = await page.evaluate(`(async () => {
@@ -570,11 +643,29 @@ cli({
         });
       })()`);
             const listRows = Array.isArray(pageRows) ? pageRows : [];
-            rows.push(...listRows);
             if (listRows.length === 0)
                 break;
-            if (rows.length >= limit)
-                break;
+            // 客戶端 filter — 針對里程範圍（8891 沒伺服器端）
+            for (const item of listRows) {
+                const km = parseMileageKm(item.mileage);
+                if (minMileageKm != null && (km == null || km < minMileageKm))
+                    continue;
+                if (maxMileageKm != null && km != null && km > maxMileageKm) {
+                    // 若為 mile-asc 排序，後面的只會更大 → 提前停頁
+                    if (sortValue === 'mile-asc') {
+                        exitEarly = true;
+                        break;
+                    }
+                    continue;
+                }
+                if (maxMileageKm != null && km == null)
+                    continue; // 電洽/缺里程的車在 --max-mileage 時排除
+                rows.push(item);
+                if (rows.length >= limit) {
+                    exitEarly = true;
+                    break;
+                }
+            }
         }
         return rows.slice(0, limit).map((item, i) => ({
             rank: i + 1,

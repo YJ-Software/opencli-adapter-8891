@@ -405,6 +405,12 @@ def main() -> int:
     parser.add_argument("--recent-only", action="store_true", help="只看最新刊登（~7 天內）")
     parser.add_argument("--has-video", action="store_true", help="只看有影片看車的")
     parser.add_argument("--search", help="關鍵字搜尋（free text），可與其他 filter 疊加")
+    # 新增 filter（v5）
+    parser.add_argument("--min-mileage", type=int, help="里程下限 (km)，客戶端 filter")
+    parser.add_argument("--max-mileage", type=int, help="里程上限 (km)，客戶端 filter；會自動觸發 sort=mile-asc 提前停頁")
+    parser.add_argument("--min-mileage-wan", type=float, help="里程下限 (萬 km)，例：1.5 = 15000 km")
+    parser.add_argument("--max-mileage-wan", type=float, help="里程上限 (萬 km)，例：5 = 50000 km")
+    parser.add_argument("--sort", help="排序：price / year / mile / gas，可加 -asc/-desc（例：mile-asc / price-desc / year）")
     parser.add_argument("--limit", type=int, default=1000, help="list 抓幾筆（預設 1000 大於單次結果）")
     # sync 控制
     parser.add_argument("--list-only", action="store_true", help="只跑 list 階段")
@@ -465,6 +471,16 @@ def main() -> int:
         list_filter += ["--has-video"]
     if args.search:
         list_filter += ["--search", args.search]
+    if args.min_mileage is not None:
+        list_filter += ["--min-mileage", str(args.min_mileage)]
+    if args.max_mileage is not None:
+        list_filter += ["--max-mileage", str(args.max_mileage)]
+    if args.min_mileage_wan is not None:
+        list_filter += ["--min-mileage-wan", str(args.min_mileage_wan)]
+    if args.max_mileage_wan is not None:
+        list_filter += ["--max-mileage-wan", str(args.max_mileage_wan)]
+    if args.sort:
+        list_filter += ["--sort", args.sort]
     if args.power:
         list_filter += ["--power", args.power]
     if args.min_price is not None:
