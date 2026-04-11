@@ -28,6 +28,20 @@ CREATE TABLE IF NOT EXISTS cars (
   badges              TEXT,                      -- "精選,真實車源"
   thumbnail_url       TEXT,                      -- 列表縮圖 (300x225)；原圖把 _300_225 換成其他尺寸或拿掉即可
 
+  -- ─── 從 Next.js __next_f flight data 抓的 (list 階段免費附贈，無需 detail) ─
+  brand_id            INTEGER,                   -- 12873 (Tesla)
+  brand_en            TEXT,                      -- "Tesla"  (vs brand 欄位是 detail 拿到的 "特斯拉/Tesla")
+  kind_id             INTEGER,                   -- 17967 (Model Y)
+  kind_en             TEXT,                      -- "Model Y"  (與 model 欄位通常相同)
+  color               TEXT,                      -- 白色 / 黑色 ...
+  gas                 TEXT,                      -- "1.1L以下" / "1.6-2.0L" / "純電" 排氣量分類
+  day_views           INTEGER,                   -- 今日瀏覽數 (vs view_count 為累計)
+  item_post_date      TEXT,                      -- 精準刊登時間 "2026-02-28 22:14:43"
+  item_renew_date     TEXT,                      -- 精準更新時間
+  member_id           INTEGER,                   -- 賣家 member ID (可追同一賣家的所有刊登)
+  big_image_url       TEXT,                      -- 600x450 中等尺寸
+  dashboard_image_url TEXT,                      -- 儀表板實拍 (里程證據)
+
   -- ─── detail 階段才抓得到（相對靜態）──────────
   msrp_wan            REAL,                      -- 212.8 (新車價)
   brand               TEXT,                      -- 特斯拉/Tesla

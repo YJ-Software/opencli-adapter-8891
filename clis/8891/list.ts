@@ -24,7 +24,7 @@ cli({
     { name: 'max-price', type: 'int', help: '最高價格（單位：萬）' },
     { name: 'in-store-only', type: 'bool', default: false, help: '排除不在店車輛' },
   ],
-  columns: ['rank', 'id', 'title', 'price', 'year', 'mileage', 'location', 'updated_ago', 'view_count', 'current_viewers', 'thumbnail', 'url'],
+  columns: ['rank', 'id', 'title', 'brand', 'model', 'color', 'price', 'year', 'mileage', 'location', 'view_count', 'day_views', 'thumbnail', 'url'],
   func: async (page, kwargs) => {
     const startPage = Number(kwargs.page) || 1;
     const limit = Number(kwargs.limit) || 20;
@@ -123,11 +123,9 @@ cli({
           const currentViewers = text(viewersEl);
           // 賣點 / promo
           const promoEl = card.querySelector('[class*="promotion-tag"] p');
-          // 縮圖：優先從 flight data 拿（lazy-load 前 DOM 沒 <img>）
+          // 從 flight data 拿縮圖、品牌/車型、賣家、色彩等結構化資料
           const carId = idMatch ? idMatch[1] : null;
-          const flight = carId ? flightById[carId] : null;
-          const thumbnail = (flight && flight.image) || null;
-          const bigImage = (flight && flight.bigImage) || null;
+          const flight = (carId ? flightById[carId] : null) || {};
           // 信任標章
           const trustBadgeEl = card.querySelector('[class*="set-super-top-label"] img');
           const auditLabelEl = card.querySelector('[class*="audit-label"] img');
@@ -147,7 +145,20 @@ cli({
             tagline: text(card.querySelector('[class*="ib-info-oldtitle"]')),
             promo: text(promoEl),
             badges: badges.join(','),
-            thumbnail: thumbnail,
+            // 從 flight data 補的結構化欄位（比 DOM 抓更穩、無需進 detail）
+            brand_id: flight.brandId ?? null,
+            brand_en_name: flight.brandEnName || null,
+            kind_id: flight.kindId ?? null,
+            kind_en_name: flight.kindEnName || null,
+            color: flight.color || null,
+            gas: flight.gas || null,
+            day_views: flight.dayViewNum ?? null,
+            item_post_date: flight.itemPostDate || null,
+            item_renew_date: flight.itemRenewDate || null,
+            member_id: flight.memberId ?? null,
+            thumbnail: flight.image || null,
+            big_image: flight.bigImage || null,
+            dashboard_image: flight.dashboardImage || null,
             url: absUrl.split('?')[0],
           };
         });
@@ -163,17 +174,33 @@ cli({
       rank: i + 1,
       id: item.id || '',
       title: item.title || '',
+      // 來自 flight data 的結構化欄位
+      brand: item.brand_en_name || '',
+      brand_id: item.brand_id ?? '',
+      model: item.kind_en_name || '',
+      kind_id: item.kind_id ?? '',
+      color: item.color || '',
+      gas: item.gas || '',
+      // 從 DOM 抓的（current_viewers / view_count / updated_ago 是 DOM 顯示文字）
       price: item.price || '',
       year: item.year || '',
       mileage: item.mileage || '',
       location: item.location || '',
       updated_ago: item.updated_ago || '',
       view_count: item.view_count ?? '',
+      day_views: item.day_views ?? '',
       current_viewers: item.current_viewers || '',
       tagline: item.tagline || '',
       promo: item.promo || '',
       badges: item.badges || '',
+      // flight data 的精準時間戳（vs updated_ago 模糊文字）
+      item_post_date: item.item_post_date || '',
+      item_renew_date: item.item_renew_date || '',
+      member_id: item.member_id ?? '',
+      // 圖片
       thumbnail: item.thumbnail || '',
+      big_image: item.big_image || '',
+      dashboard_image: item.dashboard_image || '',
       url: item.url || '',
     }));
   },

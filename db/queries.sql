@@ -77,16 +77,17 @@ LIMIT 20;
 
 
 -- ─── 6. 按品牌統計 ─────────────────────────
+-- 用 brand_en（list 階段就有，無需 detail）
 SELECT
-  brand,
+  brand_en AS brand,
   COUNT(*) AS n,
   ROUND(AVG(price_wan), 1) AS avg_wan,
   MIN(price_wan) AS min_wan,
   MAX(price_wan) AS max_wan,
   ROUND(AVG(mileage_km)/10000.0, 2) AS avg_mileage_wan
 FROM cars
-WHERE is_active=1 AND brand IS NOT NULL
-GROUP BY brand
+WHERE is_active=1 AND brand_en IS NOT NULL
+GROUP BY brand_en
 ORDER BY n DESC;
 
 
@@ -148,7 +149,62 @@ WHERE is_active=1
 ORDER BY price_wan ASC;
 
 
--- ─── 13. 瀏覽數爆增的車（熱度）──────────────
+-- ─── 13a. 同一賣家的所有刊登（追車商）─────────
+SELECT
+  member_id,
+  COUNT(*) AS n,
+  GROUP_CONCAT(brand_en || ' ' || kind_en, ' | ') AS cars,
+  ROUND(AVG(price_wan), 1) AS avg_wan
+FROM cars
+WHERE is_active=1 AND member_id IS NOT NULL
+GROUP BY member_id
+HAVING n >= 3
+ORDER BY n DESC;
+
+
+-- ─── 13b. 顏色 × 品牌 樞紐 ─────────────────
+SELECT
+  color,
+  COUNT(*) AS total,
+  SUM(CASE WHEN brand_en='Tesla' THEN 1 ELSE 0 END) AS tesla,
+  SUM(CASE WHEN brand_en='Toyota' THEN 1 ELSE 0 END) AS toyota,
+  SUM(CASE WHEN brand_en='Volkswagen' THEN 1 ELSE 0 END) AS vw
+FROM cars
+WHERE is_active=1 AND color IS NOT NULL
+GROUP BY color
+ORDER BY total DESC;
+
+
+-- ─── 13c. 今日熱度 vs 累計（爆紅車）────────
+-- day_views / view_count 比率高 = 今天突然受關注
+SELECT
+  brand_en, kind_en, year, price_wan,
+  day_views, view_count,
+  ROUND(100.0 * day_views / NULLIF(view_count, 0), 1) AS day_pct
+FROM cars
+WHERE is_active=1 AND day_views > 0 AND view_count > 0
+ORDER BY day_pct DESC
+LIMIT 20;
+
+
+-- ─── 13d. 最近 N 天內精準刊登（用 item_post_date 而非 first_seen_at）─
+SELECT id, brand_en, kind_en, year, price_wan, location,
+       item_post_date
+FROM cars
+WHERE is_active=1
+  AND julianday('now') - julianday(item_post_date) <= 7
+ORDER BY item_post_date DESC;
+
+
+-- ─── 13e. 同款車比價（同 kind_id 找對手）──────
+-- 換成你想看的 kind_id（例：17967 = Tesla Model Y）
+SELECT id, year, price_wan, mileage_km/10000.0 AS mw, color, location, day_views
+FROM cars
+WHERE is_active=1 AND kind_id = 17967
+ORDER BY price_wan ASC;
+
+
+-- ─── 14. 瀏覽數爆增的車（熱度）──────────────
 -- 比對每輛車最近兩次 view_history 記錄
 WITH latest AS (
   SELECT car_id, view_count, observed_at,

@@ -151,6 +151,11 @@ LIST_MUTABLE_FIELDS = (
     "title", "price_wan", "year", "mileage_km", "location",
     "updated_ago_text", "view_count", "current_viewers",
     "tagline", "promo", "badges", "thumbnail_url", "url",
+    # 從 flight data 抓的（list 階段免費附贈）
+    "brand_id", "brand_en", "kind_id", "kind_en",
+    "color", "gas", "day_views",
+    "item_post_date", "item_renew_date", "member_id",
+    "big_image_url", "dashboard_image_url",
 )
 
 
@@ -190,6 +195,19 @@ def upsert_from_list(
             "badges": item.get("badges") or None,
             "thumbnail_url": item.get("thumbnail") or None,
             "url": item.get("url") or None,
+            # flight data 欄位：opencli 把空值序列化成空字串，要轉回 None
+            "brand_id": item.get("brand_id") if isinstance(item.get("brand_id"), int) else None,
+            "brand_en": item.get("brand") or None,
+            "kind_id": item.get("kind_id") if isinstance(item.get("kind_id"), int) else None,
+            "kind_en": item.get("model") or None,
+            "color": item.get("color") or None,
+            "gas": item.get("gas") or None,
+            "day_views": item.get("day_views") if isinstance(item.get("day_views"), int) else None,
+            "item_post_date": item.get("item_post_date") or None,
+            "item_renew_date": item.get("item_renew_date") or None,
+            "member_id": item.get("member_id") if isinstance(item.get("member_id"), int) else None,
+            "big_image_url": item.get("big_image") or None,
+            "dashboard_image_url": item.get("dashboard_image") or None,
         }
 
         prev = existing.get(car_id)
