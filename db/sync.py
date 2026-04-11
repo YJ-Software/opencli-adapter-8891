@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
 import shutil
 import sqlite3
@@ -32,8 +31,27 @@ DB_DIR = Path(__file__).resolve().parent
 DB_PATH = DB_DIR / "cars.db"
 SCHEMA_PATH = DB_DIR / "schema.sql"
 
-# Windows: opencli 是 .cmd，subprocess 直接呼叫找不到，要指到具體路徑
-OPENCLI_CMD = shutil.which("opencli") or shutil.which("opencli.cmd") or "opencli"
+
+def _find_opencli() -> str:
+    """Locate the opencli executable across platforms.
+
+    Windows ships both a Unix-style shim ("opencli", no extension) and
+    "opencli.cmd". subprocess on Windows can only invoke the .cmd directly,
+    so prefer that. On Linux/macOS, only "opencli" exists.
+    """
+    candidates = ["opencli.cmd", "opencli"] if sys.platform == "win32" else ["opencli"]
+    for name in candidates:
+        path = shutil.which(name)
+        if path:
+            return path
+    sys.exit(
+        "ERROR: opencli not found in PATH.\n"
+        "Install with:  npm install -g @jackwener/opencli\n"
+        "Or check your PATH includes the npm global bin directory."
+    )
+
+
+OPENCLI_CMD = _find_opencli()
 
 
 # ─────────────────────────────────────────────────────
@@ -93,15 +111,13 @@ def run_opencli_json(args: list[str]) -> list[dict[str, Any]]:
     """執行 opencli 並解析 JSON 輸出。"""
     cmd = [OPENCLI_CMD, *args, "--format", "json"]
     print(f"  ▶ opencli {' '.join(args)} --format json", flush=True)
-    # Windows: .cmd 需要 shell=True 或直接指向 .cmd 檔
-    use_shell = sys.platform == "win32" and not OPENCLI_CMD.lower().endswith(".cmd")
+    # 只要 OPENCLI_CMD 是絕對路徑（Windows .cmd 或 Linux 二進位），shell=False 即可
     result = subprocess.run(
         cmd,
         capture_output=True,
         text=True,
         encoding="utf-8",
         errors="replace",
-        shell=use_shell,
     )
     if result.returncode != 0:
         print(f"  ✗ opencli failed (exit {result.returncode})", file=sys.stderr)
@@ -163,8 +179,13 @@ def upsert_from_list(
     conn: sqlite3.Connection,
     items: list[dict[str, Any]],
     observed_at: str,
+    mark_gone: bool = True,
 ) -> dict[str, int]:
-    """把 list 結果寫入 DB。回傳 {new, updated, gone, price_changes}"""
+    """把 list 結果寫入 DB。回傳 {new, updated, gone, price_changes}
+
+    mark_gone=False 時不會把缺席的車標 inactive — 用於部分結果同步
+    （例如測試時只跑 --limit 3，避免把其他 240 輛誤標下架）
+    """
     stats = {"new": 0, "updated": 0, "gone": 0, "price_changes": 0}
 
     existing = {
@@ -250,7 +271,7 @@ def upsert_from_list(
             )
 
     # 標記下架（is_active=1 但這次沒看到）
-    if seen_ids:
+    if mark_gone and seen_ids:
         placeholders = ",".join("?" * len(seen_ids))
         gone = conn.execute(
             f"UPDATE cars SET is_active=0 WHERE is_active=1 AND id NOT IN ({placeholders})",
@@ -366,6 +387,8 @@ def main() -> int:
     parser.add_argument("--detail-batch", type=int, default=50, help="每批 detail 幾筆")
     parser.add_argument("--detail-delay-ms", type=int, default=300, help="detail 之間延遲")
     parser.add_argument("--dry-run", action="store_true", help="不寫入 DB")
+    parser.add_argument("--no-mark-gone", action="store_true",
+                        help="不要把這次沒看到的車標 inactive（測試用 --limit 時必須加，避免誤標下架）")
     args = parser.parse_args()
 
     # 組 opencli list filter 參數
@@ -411,8 +434,29 @@ def main() -> int:
                 print(json.dumps(list_items[0], ensure_ascii=False, indent=2))
             return 0
 
+        # 安全檢查：如果這次抓到的數量遠少於 DB 現有 active 數，
+        # 可能是 --limit 太小或網站故障，避免誤把大量車標 inactive。
+        active_before = conn.execute(
+            "SELECT COUNT(*) FROM cars WHERE is_active=1"
+        ).fetchone()[0]
+        mark_gone = not args.no_mark_gone
+        if mark_gone and active_before > 0 and len(list_items) < active_before * 0.5:
+            print(
+                f"  ⚠ list count ({len(list_items)}) < 50% of active in DB ({active_before})",
+                file=sys.stderr,
+            )
+            print(
+                "  ⚠ Refusing to mark missing cars as inactive (auto-disabled).",
+                file=sys.stderr,
+            )
+            print(
+                "  ⚠ If this is intentional, re-run with --no-mark-gone to suppress this check.",
+                file=sys.stderr,
+            )
+            mark_gone = False
+
         print("[1/2] Upserting list data...")
-        list_stats = upsert_from_list(conn, list_items, started_at)
+        list_stats = upsert_from_list(conn, list_items, started_at, mark_gone=mark_gone)
         print(
             f"  ✓ new={list_stats['new']} "
             f"updated={list_stats['updated']} "
