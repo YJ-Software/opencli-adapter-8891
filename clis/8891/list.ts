@@ -39,6 +39,115 @@ const BRANDS: Brand[] = JSON.parse(
   readFileSync(join(__dirname, 'brands.json'), 'utf-8'),
 );
 
+// ─── 車種 (body style) → t[]=N，可多選 ─────────
+const BODY_LOOKUP: Record<string, number> = {
+  // 轎車/跑車 = 1
+  '轎車': 1, '跑車': 1, '轎車/跑車': 1, '轎跑': 1,
+  'sedan': 1, 'coupe': 1, 'sports': 1, 'sport': 1,
+  // 休旅車 = 2
+  '休旅': 2, '休旅車': 2, 'suv': 2, 'crossover': 2,
+  // 貨車 = 3
+  '貨車': 3, 'truck': 3, 'van': 3,
+  // 其他車型 = 5
+  '其他': 5, '其他車型': 5, 'other': 5, 'misc': 5,
+  // 吉普車 = 6
+  '吉普': 6, '吉普車': 6, 'jeep': 6,
+};
+const BODY_NAMES: Record<number, string> = {
+  1: '轎車/跑車', 2: '休旅車', 3: '貨車', 5: '其他車型', 6: '吉普車',
+};
+
+// ─── 變速系統 → tab[]=N，可多選（注意 URL key 是 tab，不是 transmission）─
+const TRANSMISSION_LOOKUP: Record<string, number> = {
+  '手排': 0, 'manual': 0, 'mt': 0,
+  '自排': 1, 'automatic': 1, 'at': 1, 'auto': 1,
+  '自手排': 2, 'amt': 2, 'dct': 2, 'dsg': 2, 'pdk': 2,
+  '手自排': 3, 'tiptronic': 3,
+};
+const TRANSMISSION_NAMES: Record<number, string> = {
+  0: '手排', 1: '自排', 2: '自手排', 3: '手自排',
+};
+
+// ─── 驅動方式 → drive[]=N，可多選（2=二驅、4=四驅）───
+const DRIVETRAIN_LOOKUP: Record<string, number> = {
+  '2wd': 2, '2驅': 2, '二驅': 2, '兩驅': 2, '前驅': 2, '後驅': 2,
+  'fwd': 2, 'rwd': 2, 'front-wheel': 2, 'rear-wheel': 2, '兩輪驅動': 2,
+  '4wd': 4, '4驅': 4, '四驅': 4, 'awd': 4, '全輪': 4, '全輪驅動': 4, '四輪驅動': 4,
+};
+const DRIVETRAIN_NAMES: Record<number, string> = { 2: '2WD', 4: '4WD' };
+
+// ─── 車門數 → door[]=N，N = 門數 - 2（2 門=0, 6 門=4）───
+const DOOR_INPUT_MAP: Record<number, number> = {
+  2: 0, 3: 1, 4: 2, 5: 3, 6: 4,
+};
+
+// ─── 乘客數 → chair[]=N（2-10 / 12 直通，"12+" → 13）───
+const SEAT_INPUT_VALUES = new Set([2, 3, 4, 5, 6, 7, 8, 9, 10, 12]);
+const SEAT_12PLUS = 13;
+
+function resolveBody(input: string): number {
+  const norm = input.toLowerCase().trim();
+  if (/^\d+$/.test(norm)) {
+    const n = parseInt(norm, 10);
+    if (n in BODY_NAMES) return n;
+    throw new Error(`Unknown body ID: ${n}. Valid: 1,2,3,5,6`);
+  }
+  if (norm in BODY_LOOKUP) return BODY_LOOKUP[norm];
+  if (input in BODY_LOOKUP) return BODY_LOOKUP[input];
+  throw new Error(
+    `Unknown body: "${input}". Valid: ${Object.values(BODY_NAMES).join(' / ')} ` +
+    `(or sedan/suv/truck/jeep/other)`,
+  );
+}
+
+function resolveTransmission(input: string): number {
+  const norm = input.toLowerCase().trim();
+  if (/^\d+$/.test(norm)) {
+    const n = parseInt(norm, 10);
+    if (n in TRANSMISSION_NAMES) return n;
+    throw new Error(`Unknown transmission ID: ${n}. Valid: 0-3`);
+  }
+  if (norm in TRANSMISSION_LOOKUP) return TRANSMISSION_LOOKUP[norm];
+  if (input in TRANSMISSION_LOOKUP) return TRANSMISSION_LOOKUP[input];
+  throw new Error(
+    `Unknown transmission: "${input}". Valid: 手排/自排/自手排/手自排 or manual/automatic/amt/tiptronic`,
+  );
+}
+
+function resolveDrivetrain(input: string): number {
+  const norm = input.toLowerCase().trim();
+  if (/^\d+$/.test(norm)) {
+    const n = parseInt(norm, 10);
+    if (n === 2 || n === 4) return n;
+    throw new Error(`Unknown drivetrain: ${n}. Valid: 2 (2WD) / 4 (4WD)`);
+  }
+  if (norm in DRIVETRAIN_LOOKUP) return DRIVETRAIN_LOOKUP[norm];
+  if (input in DRIVETRAIN_LOOKUP) return DRIVETRAIN_LOOKUP[input];
+  throw new Error(
+    `Unknown drivetrain: "${input}". Valid: 2WD / 4WD / AWD / FWD / RWD / 前驅 / 後驅 / 四驅`,
+  );
+}
+
+function resolveDoors(input: string): number {
+  const n = parseInt(input.trim(), 10);
+  if (!Number.isFinite(n) || !(n in DOOR_INPUT_MAP)) {
+    throw new Error(`Unknown door count: "${input}". Valid: 2, 3, 4, 5, 6`);
+  }
+  return DOOR_INPUT_MAP[n];
+}
+
+function resolveSeats(input: string): number {
+  const s = input.trim();
+  if (s === '12+' || s === '>12' || s === '12以上') return SEAT_12PLUS;
+  const n = parseInt(s, 10);
+  if (!Number.isFinite(n) || !SEAT_INPUT_VALUES.has(n)) {
+    throw new Error(
+      `Unknown seat count: "${input}". Valid: 2-10, 12, or 12+ (for 12 座以上)`,
+    );
+  }
+  return n;
+}
+
 // 5 種燃料類型：名稱 → 8891 power ID
 // 驗證方法：側欄點擊每個選項觀察 URL 變化；對 selectData 確認 label 對應
 const FUEL_LOOKUP: Record<string, number> = {
@@ -147,13 +256,27 @@ cli({
     // 廠牌 / 車系（URL path）
     { name: 'brand', type: 'string', help: '廠牌：slug / 英文 / 中文，例：tesla / Tesla / 特斯拉' },
     { name: 'kind', type: 'string', help: '車系：slug 或 name，例：model-y / "Model Y"（需配合 --brand）' },
-    // 年份範圍
+    // 年份範圍（絕對年份，與 --max-age/--min-age 互斥）
     { name: 'year-from', type: 'int', help: '年份下限（例：2020，含）' },
     { name: 'year-to', type: 'int', help: '年份上限（例：2024，含）' },
+    // 車齡（相對於當年）— 更口語的年份輸入
+    { name: 'max-age', type: 'int', help: '車齡上限（年）。例：--max-age 3 = 3 年以內。與 --year-from/to 互斥' },
+    { name: 'min-age', type: 'int', help: '車齡下限（年）。例：--min-age 1 --max-age 3 = 1~3 年' },
     // 地區（中文縣市名，逗號分隔多選）
     { name: 'region', type: 'string', help: '地區：中文縣市名，逗號分隔多選，例：台北,台中,高雄' },
     // 個人自售
     { name: 'personal-only', type: 'bool', default: false, help: '只看個人自售（預設含車商）' },
+    // 車種 / 變速 / 驅動 / 車門 / 座位
+    { name: 'body', type: 'string', help: '車種：轎車/休旅車/貨車/吉普車/其他，或 sedan/suv/truck/jeep，逗號多選' },
+    { name: 'transmission', type: 'string', help: '變速：手排/自排/自手排/手自排，或 manual/automatic/amt/tiptronic，逗號多選' },
+    { name: 'drivetrain', type: 'string', help: '驅動：2WD / 4WD / AWD / FWD / RWD / 前驅 / 後驅 / 四驅，逗號多選' },
+    { name: 'doors', type: 'string', help: '車門數：2-6，逗號多選。例：--doors 4,5' },
+    { name: 'seats', type: 'string', help: '乘客數：2-10 / 12 / 12+，逗號多選。例：--seats 5,7' },
+    // 排氣量（cc 優先，若都沒給可用 liter）
+    { name: 'min-cc', type: 'int', help: '排氣量下限（cc）' },
+    { name: 'max-cc', type: 'int', help: '排氣量上限（cc）' },
+    { name: 'min-liter', type: 'float', help: '排氣量下限（L），自動 × 1000 轉 cc' },
+    { name: 'max-liter', type: 'float', help: '排氣量上限（L），自動 × 1000 轉 cc' },
     // 既有
     { name: 'power', type: 'string', help: '燃料：名稱或 ID，可多值逗號分隔。0=汽油 / 1=柴油 / 2=油電複合 / 3=瓦斯雙燃料 / 4=純電。例：--power 純電 / --power 2,4 / --power hybrid,ev' },
     { name: 'min-price', type: 'int', help: '最低價格（單位：萬）' },
@@ -198,14 +321,85 @@ cli({
       params.push(`price=${lo}_${hi}`);
     }
 
-    // 年份範圍
+    // 年份範圍 / 車齡（兩者互斥）
     const yFrom = kwargs['year-from'] != null ? Number(kwargs['year-from']) : null;
     const yTo = kwargs['year-to'] != null ? Number(kwargs['year-to']) : null;
-    if (yFrom != null || yTo != null) {
+    const maxAge = kwargs['max-age'] != null ? Number(kwargs['max-age']) : null;
+    const minAge = kwargs['min-age'] != null ? Number(kwargs['min-age']) : null;
+    const hasAbsYear = yFrom != null || yTo != null;
+    const hasAge = maxAge != null || minAge != null;
+    if (hasAbsYear && hasAge) {
+      throw new Error('不能同時使用 --year-from/--year-to 和 --max-age/--min-age');
+    }
+    if (hasAbsYear) {
       const lo = yFrom ?? 1990;
       const hi = yTo ?? new Date().getFullYear() + 1;
       if (lo > hi) throw new Error(`--year-from (${lo}) 必須 ≤ --year-to (${hi})`);
       params.push(`y[]=${lo}_${hi}`);
+    } else if (hasAge) {
+      const now = new Date().getFullYear();
+      // age: 越小 = 越新。max-age=3 意思是 3 年以內（含今年 ~ 3 年前）
+      const hi = now - (minAge ?? 0) + 1; // 最新年份
+      const lo = now - (maxAge ?? 50);    // 最舊年份
+      if (lo > hi) throw new Error(`--min-age (${minAge}) 必須 ≤ --max-age (${maxAge})`);
+      params.push(`y[]=${lo}_${hi}`);
+    }
+
+    // 車種 t[]=N
+    if (kwargs.body) {
+      for (const s of String(kwargs.body).split(',').map((x) => x.trim()).filter(Boolean)) {
+        params.push(`t[]=${resolveBody(s)}`);
+      }
+    }
+
+    // 變速 tab[]=N
+    if (kwargs.transmission) {
+      for (const s of String(kwargs.transmission).split(',').map((x) => x.trim()).filter(Boolean)) {
+        params.push(`tab[]=${resolveTransmission(s)}`);
+      }
+    }
+
+    // 驅動 drive[]=N
+    if (kwargs.drivetrain) {
+      for (const s of String(kwargs.drivetrain).split(',').map((x) => x.trim()).filter(Boolean)) {
+        params.push(`drive[]=${resolveDrivetrain(s)}`);
+      }
+    }
+
+    // 車門 door[]=N（N = door_count - 2）
+    if (kwargs.doors) {
+      for (const s of String(kwargs.doors).split(',').map((x) => x.trim()).filter(Boolean)) {
+        params.push(`door[]=${resolveDoors(s)}`);
+      }
+    }
+
+    // 座位 chair[]=N
+    if (kwargs.seats) {
+      for (const s of String(kwargs.seats).split(',').map((x) => x.trim()).filter(Boolean)) {
+        params.push(`chair[]=${resolveSeats(s)}`);
+      }
+    }
+
+    // 排氣量 g=min_max (cc)。cc 和 liter 互斥，cc 優先
+    const minCc = kwargs['min-cc'] != null ? Number(kwargs['min-cc']) : null;
+    const maxCc = kwargs['max-cc'] != null ? Number(kwargs['max-cc']) : null;
+    const minLiter = kwargs['min-liter'] != null ? Number(kwargs['min-liter']) : null;
+    const maxLiter = kwargs['max-liter'] != null ? Number(kwargs['max-liter']) : null;
+    const hasCc = minCc != null || maxCc != null;
+    const hasLiter = minLiter != null || maxLiter != null;
+    if (hasCc && hasLiter) {
+      throw new Error('不能同時使用 --min-cc/--max-cc 和 --min-liter/--max-liter');
+    }
+    if (hasCc) {
+      const lo = minCc ?? 0;
+      const hi = maxCc ?? 9999;
+      if (lo > hi) throw new Error(`--min-cc (${lo}) 必須 ≤ --max-cc (${hi})`);
+      params.push(`g=${lo}_${hi}`);
+    } else if (hasLiter) {
+      const lo = minLiter != null ? Math.round(minLiter * 1000) : 0;
+      const hi = maxLiter != null ? Math.round(maxLiter * 1000) : 9999;
+      if (lo > hi) throw new Error(`--min-liter (${minLiter}) 必須 ≤ --max-liter (${maxLiter})`);
+      params.push(`g=${lo}_${hi}`);
     }
 
     // 地區（逗號分隔中文名 → r[]=N 多個）

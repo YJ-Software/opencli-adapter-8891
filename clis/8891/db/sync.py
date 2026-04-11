@@ -384,8 +384,20 @@ def main() -> int:
     parser.add_argument("--kind", help="車系：slug 或 name，例：model-y（需配合 --brand）")
     parser.add_argument("--year-from", type=int, help="年份下限（含）")
     parser.add_argument("--year-to", type=int, help="年份上限（含）")
+    parser.add_argument("--max-age", type=int, help="車齡上限（年，與 --year-from/to 互斥）")
+    parser.add_argument("--min-age", type=int, help="車齡下限（年）")
     parser.add_argument("--region", help="地區：中文縣市名，逗號分隔，例：台北,台中")
     parser.add_argument("--personal-only", action="store_true", help="只看個人自售")
+    # 新增 filter（v3）
+    parser.add_argument("--body", help="車種：轎車/休旅車/貨車/吉普車/其他，逗號多選")
+    parser.add_argument("--transmission", help="變速：手排/自排/自手排/手自排，逗號多選")
+    parser.add_argument("--drivetrain", help="驅動：2WD/4WD/AWD/FWD/RWD/前驅/後驅，逗號多選")
+    parser.add_argument("--doors", help="車門數：2-6，逗號多選")
+    parser.add_argument("--seats", help="乘客數：2-10/12/12+，逗號多選")
+    parser.add_argument("--min-cc", type=int, help="排氣量下限（cc）")
+    parser.add_argument("--max-cc", type=int, help="排氣量上限（cc）")
+    parser.add_argument("--min-liter", type=float, help="排氣量下限（L）")
+    parser.add_argument("--max-liter", type=float, help="排氣量上限（L）")
     parser.add_argument("--limit", type=int, default=1000, help="list 抓幾筆（預設 1000 大於單次結果）")
     # sync 控制
     parser.add_argument("--list-only", action="store_true", help="只跑 list 階段")
@@ -408,10 +420,32 @@ def main() -> int:
         list_filter += ["--year-from", str(args.year_from)]
     if args.year_to is not None:
         list_filter += ["--year-to", str(args.year_to)]
+    if args.max_age is not None:
+        list_filter += ["--max-age", str(args.max_age)]
+    if args.min_age is not None:
+        list_filter += ["--min-age", str(args.min_age)]
     if args.region:
         list_filter += ["--region", args.region]
     if args.personal_only:
         list_filter += ["--personal-only"]
+    if args.body:
+        list_filter += ["--body", args.body]
+    if args.transmission:
+        list_filter += ["--transmission", args.transmission]
+    if args.drivetrain:
+        list_filter += ["--drivetrain", args.drivetrain]
+    if args.doors:
+        list_filter += ["--doors", args.doors]
+    if args.seats:
+        list_filter += ["--seats", args.seats]
+    if args.min_cc is not None:
+        list_filter += ["--min-cc", str(args.min_cc)]
+    if args.max_cc is not None:
+        list_filter += ["--max-cc", str(args.max_cc)]
+    if args.min_liter is not None:
+        list_filter += ["--min-liter", str(args.min_liter)]
+    if args.max_liter is not None:
+        list_filter += ["--max-liter", str(args.max_liter)]
     if args.power:
         list_filter += ["--power", args.power]
     if args.min_price is not None:
