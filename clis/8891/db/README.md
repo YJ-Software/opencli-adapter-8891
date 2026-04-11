@@ -113,15 +113,55 @@ and open `cars.db` directly.
 
 ## Full sync flags
 
-| Flag | Purpose |
-|------|---------|
-| `--power N` | Fuel type (4 = 純電車) |
-| `--min-price N` | Lowest price in 萬 |
-| `--max-price N` | Highest price in 萬 |
-| `--in-store-only` | Exclude cars not-in-store |
-| `--limit N` | Max cars to fetch (default 1000) |
-| `--list-only` | Skip detail stage entirely |
-| `--detail-stale-days N` | Also refresh detail if older than N days |
-| `--detail-batch N` | Detail batch size (default 50) |
-| `--detail-delay-ms N` | Delay between detail requests (default 300) |
-| `--dry-run` | Preview opencli output without touching DB |
+`sync.py` accepts **all 22 filters from `opencli 8891 list`** as pass-through flags. Anything you can query interactively, you can persist to the DB.
+
+### Filter pass-through (forwarded to `opencli 8891 list`)
+
+| Flag | Notes |
+|------|-------|
+| `--brand NAME` | Slug / English / 中文 (e.g. `tesla` / `Tesla` / `特斯拉`) |
+| `--kind NAME` | Slug or name (e.g. `model-y` / `"Model Y"`); requires `--brand` |
+| `--power NAME` | Fuel: `純電` / `electric` / `4` etc; multi: `2,4` |
+| `--body NAME` | `轎車`/`休旅車`/`貨車`/`吉普車`/`其他` or `sedan`/`suv`/`truck`/`jeep`/`other` |
+| `--color NAME` | `白`/`紅`/`銀`/... or `white`/`red`/... (13 colors) |
+| `--transmission NAME` | `手排`/`自排`/`自手排`/`手自排` or `manual`/`automatic`/`amt`/`tiptronic` |
+| `--drivetrain NAME` | `2WD`/`4WD`/`AWD`/`FWD`/`RWD`/`前驅`/`後驅`/`四驅` |
+| `--doors N` | 2-6, comma-separated for multi |
+| `--seats N` | 2-10 / 12 / 12+, comma-separated for multi |
+| `--region NAME` | 縣市 or group (`北部`/`中部`/`南部`/`東部`/`離島`), comma-separated |
+| `--min-price N` / `--max-price N` | 萬 |
+| `--year-from N` / `--year-to N` | absolute year |
+| `--max-age N` / `--min-age N` | years relative to now (mutually exclusive with --year-*) |
+| `--min-cc N` / `--max-cc N` | cc |
+| `--min-liter N` / `--max-liter N` | L (mutually exclusive with --*-cc) |
+| `--in-store-only` | 排除不在店 |
+| `--personal-only` | 個人自售 |
+| `--audit-only` | 8891 認證車 |
+| `--premium-only` | 8891 嚴選 |
+| `--recent-only` | 最新刊登 (~7 days) |
+| `--has-video` | 影片看車 |
+
+### Sync-specific flags
+
+| Flag | Default | Purpose |
+|------|---------|---------|
+| `--limit N` | 1000 | Max cars per sync (default well above typical result set) |
+| `--list-only` | false | Skip detail stage entirely |
+| `--detail-stale-days N` | — | Also refresh detail if older than N days |
+| `--detail-batch N` | 50 | Detail batch size |
+| `--detail-delay-ms N` | 300 | Delay between detail requests |
+| `--no-mark-gone` | false | Skip auto-marking cars `is_active=0` (required when testing with small --limit) |
+| `--dry-run` | false | Preview opencli output without touching DB |
+
+### Example syncs
+
+```bash
+# Tesla Model Y, electric, Northern Taiwan, audited
+python sync.py --brand tesla --kind model-y --region 北部 --audit-only
+
+# Family SUV tracking — 7-seat 4WD 2.0-3.0L under 200萬
+python sync.py --body 休旅車 --seats 7 --drivetrain 4wd   --min-liter 2 --max-liter 3 --max-price 200
+
+# Weekly refresh of all electric cars, plus refetch detail after 30 days
+python sync.py --power 純電 --detail-stale-days 30
+```
