@@ -1,0 +1,14 @@
+# Python artifacts (sync.py creates these)
+__pycache__/
+*.pyc
+*.pyo
+
+# OS metadata
+.DS_Store
+Thumbs.db
+
+# Editor scratch
+.vscode/
+.idea/
+*.swp
+*~

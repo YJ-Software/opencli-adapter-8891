@@ -69,7 +69,7 @@ opencli 8891 list --power 4,3
 - `updated_ago` — relative timestamp, e.g. `7天前更新`
 - `badges` — trust badges, e.g. `精選,真實車源`
 
-These fields feed the time-series tables in `db/` (see below).
+These fields feed the time-series tables in `clis/8891/db/` (see below).
 
 **Detail output fields**
 
@@ -103,15 +103,15 @@ These fields feed the time-series tables in `db/` (see below).
 
 ## Local database (optional)
 
-See [`db/`](db/) for a Python script that syncs OpenCLI output into a local SQLite database with price history, view-count trends, and inventory tracking.
+See [`clis/8891/db/`](clis/8891/db/) for a Python script that syncs OpenCLI output into a local SQLite database with price history, view-count trends, and inventory tracking.
 
 ```bash
-cd db
+cd clis/8891/db
 python sync.py --power 4 --max-price 150 --in-store-only
-# → writes to ~/8891-db/cars.db
+# → writes to ~/.opencli/clis/8891/db/cars.db
 ```
 
 Captures time-series signals (price history, view-count growth, inventory changes).
 Queries include: price drops over time, biggest MSRP discounts, view-count growth, best value cars.
-See [`db/queries.sql`](db/queries.sql) for 13 ready-made query examples, and [`db/README.md`](db/README.md) for full docs.
+See [`clis/8891/db/queries.sql`](clis/8891/db/queries.sql) for 13 ready-made query examples, and [`clis/8891/db/README.md`](clis/8891/db/README.md) for full docs.
 

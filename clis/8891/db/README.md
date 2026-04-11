@@ -23,10 +23,11 @@ alias them.
 ## Quick start
 
 ```bash
-# 1. Install (assumes ~/8891-db as your working directory)
-mkdir -p ~/8891-db
-cp schema.sql sync.py queries.sql ~/8891-db/
-cd ~/8891-db
+# 1. The db/ folder lives alongside the .ts adapters under ~/.opencli/clis/8891/db/
+#    If you cloned the repo, just symlink or copy the whole 8891 site into place:
+mkdir -p ~/.opencli/clis
+cp -r clis/8891 ~/.opencli/clis/      # one-time install (or use ln -s)
+cd ~/.opencli/clis/8891/db
 
 # 2. First sync — electric cars under 150萬, in-store only (list only, fast)
 python sync.py --power 4 --max-price 150 --in-store-only --list-only
