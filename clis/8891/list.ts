@@ -39,6 +39,47 @@ const BRANDS: Brand[] = JSON.parse(
   readFileSync(join(__dirname, 'brands.json'), 'utf-8'),
 );
 
+// 5 種燃料類型：名稱 → 8891 power ID
+// 驗證方法：側欄點擊每個選項觀察 URL 變化；對 selectData 確認 label 對應
+const FUEL_LOOKUP: Record<string, number> = {
+  // 汽油
+  '汽油': 0, '汽油車': 0, 'gasoline': 0, 'petrol': 0, 'gas': 0,
+  // 柴油
+  '柴油': 1, '柴油車': 1, 'diesel': 1,
+  // 油電複合（Hybrid / HEV / PHEV）
+  '油電': 2, '油電複合': 2, '油電複合車': 2, '油電混合': 2,
+  'hybrid': 2, 'hev': 2, 'phev': 2,
+  // 瓦斯雙燃料（LPG / CNG dual fuel）
+  '瓦斯': 3, '瓦斯雙燃料': 3, '雙燃料': 3,
+  'lpg': 3, 'cng': 3,
+  // 純電
+  '純電': 4, '純電車': 4, '電動': 4, '電動車': 4,
+  'electric': 4, 'ev': 4, 'bev': 4,
+};
+
+const FUEL_NAMES: Record<number, string> = {
+  0: '汽油', 1: '柴油', 2: '油電複合', 3: '瓦斯雙燃料', 4: '純電',
+};
+
+// 廠牌查找前，讓 --power 接受名稱或數字 ID
+// 輸入 "4" / "電動" / "electric" 都 → 4
+function resolveFuel(input: string): number {
+  const norm = input.toLowerCase().trim();
+  // 直接是數字
+  if (/^\d+$/.test(norm)) {
+    const n = parseInt(norm, 10);
+    if (n in FUEL_NAMES) return n;
+    throw new Error(`Unknown fuel ID: ${n}. Valid IDs: 0-4`);
+  }
+  // 名稱查找（試英文 lowercase 和原始中文）
+  if (norm in FUEL_LOOKUP) return FUEL_LOOKUP[norm];
+  if (input in FUEL_LOOKUP) return FUEL_LOOKUP[input];
+  throw new Error(
+    `Unknown fuel: "${input}". Valid: 汽油/柴油/油電/瓦斯/純電 ` +
+    `or electric/hybrid/diesel/gasoline/lpg or numeric 0-4`,
+  );
+}
+
 // 22 個縣市：名稱 → 8891 地區 ID
 const REGION_LOOKUP: Record<string, number> = {
   '台北市': 1, '台北': 1,
@@ -114,7 +155,7 @@ cli({
     // 個人自售
     { name: 'personal-only', type: 'bool', default: false, help: '只看個人自售（預設含車商）' },
     // 既有
-    { name: 'power', type: 'string', help: '燃料類型代碼，例：4=純電車（可多值以逗號分隔：4,3）' },
+    { name: 'power', type: 'string', help: '燃料：名稱或 ID，可多值逗號分隔。0=汽油 / 1=柴油 / 2=油電複合 / 3=瓦斯雙燃料 / 4=純電。例：--power 純電 / --power 2,4 / --power hybrid,ev' },
     { name: 'min-price', type: 'int', help: '最低價格（單位：萬）' },
     { name: 'max-price', type: 'int', help: '最高價格（單位：萬）' },
     { name: 'in-store-only', type: 'bool', default: false, help: '排除不在店車輛' },
@@ -142,8 +183,11 @@ cli({
     const params: string[] = [];
 
     if (kwargs.power) {
-      const powers = String(kwargs.power).split(',').map((s) => s.trim()).filter(Boolean);
-      for (const p of powers) params.push(`power[]=${encodeURIComponent(p)}`);
+      const inputs = String(kwargs.power).split(',').map((s) => s.trim()).filter(Boolean);
+      for (const input of inputs) {
+        const id = resolveFuel(input);
+        params.push(`power[]=${id}`);
+      }
     }
 
     const minWan = kwargs['min-price'] != null ? Number(kwargs['min-price']) : null;
