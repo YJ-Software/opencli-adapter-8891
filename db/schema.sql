@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS cars (
   tagline             TEXT,                      -- 賣家廣告詞
   promo               TEXT,                      -- 賣點促銷文字
   badges              TEXT,                      -- "精選,真實車源"
+  thumbnail_url       TEXT,                      -- 列表縮圖 (300x225)；原圖把 _300_225 換成其他尺寸或拿掉即可
 
   -- ─── detail 階段才抓得到（相對靜態）──────────
   msrp_wan            REAL,                      -- 212.8 (新車價)

@@ -150,7 +150,7 @@ def init_db() -> sqlite3.Connection:
 LIST_MUTABLE_FIELDS = (
     "title", "price_wan", "year", "mileage_km", "location",
     "updated_ago_text", "view_count", "current_viewers",
-    "tagline", "promo", "badges", "url",
+    "tagline", "promo", "badges", "thumbnail_url", "url",
 )
 
 
@@ -188,6 +188,7 @@ def upsert_from_list(
             "tagline": item.get("tagline") or None,
             "promo": item.get("promo") or None,
             "badges": item.get("badges") or None,
+            "thumbnail_url": item.get("thumbnail") or None,
             "url": item.get("url") or None,
         }
 

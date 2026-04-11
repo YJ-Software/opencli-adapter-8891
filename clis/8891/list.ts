@@ -24,7 +24,7 @@ cli({
     { name: 'max-price', type: 'int', help: '最高價格（單位：萬）' },
     { name: 'in-store-only', type: 'bool', default: false, help: '排除不在店車輛' },
   ],
-  columns: ['rank', 'id', 'title', 'price', 'year', 'mileage', 'location', 'updated_ago', 'view_count', 'current_viewers', 'url'],
+  columns: ['rank', 'id', 'title', 'price', 'year', 'mileage', 'location', 'updated_ago', 'view_count', 'current_viewers', 'thumbnail', 'url'],
   func: async (page, kwargs) => {
     const startPage = Number(kwargs.page) || 1;
     const limit = Number(kwargs.limit) || 20;
@@ -55,7 +55,49 @@ cli({
       const url = `https://auto.8891.com.tw/?${baseQuery}${baseQuery ? '&' : ''}page=${p}`;
       await page.goto(url, { waitUntil: 'domcontentloaded' });
 
-      const pageRows = await page.evaluate(`(() => {
+      const pageRows = await page.evaluate(`(async () => {
+        // === 從 Next.js __next_f flight data 抓取結構化資料（含圖片 URL）===
+        // 列表卡片是 lazy-load，<img> 在滾動前不存在；但 flight data 已含完整資訊
+        // Flight data 是 streaming 進來，可能 domcontentloaded 後還沒到，所以 polling 等
+        const flightById = {};
+        const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+        const tryParse = () => {
+          if (!window.__next_f) return false;
+          const all = window.__next_f.map((p) => (p && p[1]) || '').join('');
+          const ldIdx = all.indexOf('"listData":');
+          if (ldIdx < 0) return false;
+          const itemsKey = '"items":';
+          const itemsIdx = all.indexOf(itemsKey, ldIdx);
+          if (itemsIdx < 0) return false;
+          try {
+            let i = itemsIdx + itemsKey.length;
+            while (i < all.length && all[i] !== '[') i++;
+            const start = i;
+            let depth = 0, inStr = false, esc = false;
+            for (; i < all.length; i++) {
+              const c = all[i];
+              if (esc) { esc = false; continue; }
+              if (c === '\\\\') { esc = true; continue; }
+              if (c === '"') { inStr = !inStr; continue; }
+              if (inStr) continue;
+              if (c === '[') depth++;
+              else if (c === ']') { depth--; if (depth === 0) { i++; break; } }
+            }
+            if (depth !== 0) return false; // 還沒收尾
+            const arr = JSON.parse(all.slice(start, i));
+            if (!Array.isArray(arr) || arr.length === 0) return false;
+            for (const it of arr) {
+              if (it && it.itemId) flightById[String(it.itemId)] = it;
+            }
+            return true;
+          } catch (e) { return false; }
+        };
+        // Polling: 最多 6 秒等 flight data
+        for (let attempt = 0; attempt < 30; attempt++) {
+          if (tryParse()) break;
+          await sleep(200);
+        }
+
         const cards = document.querySelectorAll('a.row-item');
         const text = (el) => (el && el.textContent ? el.textContent.trim() : null);
         return Array.from(cards).map((card) => {
@@ -81,6 +123,11 @@ cli({
           const currentViewers = text(viewersEl);
           // 賣點 / promo
           const promoEl = card.querySelector('[class*="promotion-tag"] p');
+          // 縮圖：優先從 flight data 拿（lazy-load 前 DOM 沒 <img>）
+          const carId = idMatch ? idMatch[1] : null;
+          const flight = carId ? flightById[carId] : null;
+          const thumbnail = (flight && flight.image) || null;
+          const bigImage = (flight && flight.bigImage) || null;
           // 信任標章
           const trustBadgeEl = card.querySelector('[class*="set-super-top-label"] img');
           const auditLabelEl = card.querySelector('[class*="audit-label"] img');
@@ -100,6 +147,7 @@ cli({
             tagline: text(card.querySelector('[class*="ib-info-oldtitle"]')),
             promo: text(promoEl),
             badges: badges.join(','),
+            thumbnail: thumbnail,
             url: absUrl.split('?')[0],
           };
         });
@@ -125,6 +173,7 @@ cli({
       tagline: item.tagline || '',
       promo: item.promo || '',
       badges: item.badges || '',
+      thumbnail: item.thumbnail || '',
       url: item.url || '',
     }));
   },
