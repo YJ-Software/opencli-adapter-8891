@@ -398,6 +398,12 @@ def main() -> int:
     parser.add_argument("--max-cc", type=int, help="排氣量上限（cc）")
     parser.add_argument("--min-liter", type=float, help="排氣量下限（L）")
     parser.add_argument("--max-liter", type=float, help="排氣量上限（L）")
+    # 新增 filter（v4）
+    parser.add_argument("--color", help="車色：中文或英文，逗號多選")
+    parser.add_argument("--audit-only", action="store_true", help="只看 8891 認證車")
+    parser.add_argument("--premium-only", action="store_true", help="只看 8891 嚴選")
+    parser.add_argument("--recent-only", action="store_true", help="只看最新刊登（~7 天內）")
+    parser.add_argument("--has-video", action="store_true", help="只看有影片看車的")
     parser.add_argument("--limit", type=int, default=1000, help="list 抓幾筆（預設 1000 大於單次結果）")
     # sync 控制
     parser.add_argument("--list-only", action="store_true", help="只跑 list 階段")
@@ -446,6 +452,16 @@ def main() -> int:
         list_filter += ["--min-liter", str(args.min_liter)]
     if args.max_liter is not None:
         list_filter += ["--max-liter", str(args.max_liter)]
+    if args.color:
+        list_filter += ["--color", args.color]
+    if args.audit_only:
+        list_filter += ["--audit-only"]
+    if args.premium_only:
+        list_filter += ["--premium-only"]
+    if args.recent_only:
+        list_filter += ["--recent-only"]
+    if args.has_video:
+        list_filter += ["--has-video"]
     if args.power:
         list_filter += ["--power", args.power]
     if args.min_price is not None:

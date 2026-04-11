@@ -39,6 +39,37 @@ const BRANDS: Brand[] = JSON.parse(
   readFileSync(join(__dirname, 'brands.json'), 'utf-8'),
 );
 
+// ─── 車色 → color[]=N，可多選（ID 不連續，有些數字是 8891 內部保留）───
+const COLOR_LOOKUP: Record<string, number> = {
+  '白': 0, '白色': 0, 'white': 0,
+  '紅': 1, '紅色': 1, 'red': 1,
+  '銀': 2, '銀色': 2, 'silver': 2,
+  '灰': 3, '灰色': 3, 'gray': 3, 'grey': 3,
+  '黑': 4, '黑色': 4, 'black': 4,
+  '黃': 5, '黃色': 5, 'yellow': 5,
+  '橙': 8, '橙色': 8, '橘': 8, '橘色': 8, 'orange': 8,
+  '綠': 9, '綠色': 9, 'green': 9,
+  '藍': 10, '藍色': 10, 'blue': 10,
+  '紫': 11, '紫色': 11, 'purple': 11, 'violet': 11,
+  '棕': 13, '棕色': 13, '咖啡': 13, '咖啡色': 13, 'brown': 13,
+  '粉': 15, '粉色': 15, 'pink': 15,
+  '其他': 12, '其他顏色': 12, 'other': 12,
+};
+
+function resolveColor(input: string): number {
+  const norm = input.toLowerCase().trim();
+  if (/^\d+$/.test(norm)) {
+    const n = parseInt(norm, 10);
+    return n; // 直接用數字 ID
+  }
+  if (norm in COLOR_LOOKUP) return COLOR_LOOKUP[norm];
+  if (input in COLOR_LOOKUP) return COLOR_LOOKUP[input];
+  throw new Error(
+    `Unknown color: "${input}". Valid: 白/紅/銀/灰/黑/黃/橙/綠/藍/紫/棕/粉/其他 ` +
+    `or white/red/silver/gray/black/yellow/orange/green/blue/purple/brown/pink`,
+  );
+}
+
 // ─── 車種 (body style) → t[]=N，可多選 ─────────
 const BODY_LOOKUP: Record<string, number> = {
   // 轎車/跑車 = 1
@@ -189,6 +220,15 @@ function resolveFuel(input: string): number {
   );
 }
 
+// 地區分組：使用者輸入 "北部" → 展開成多個縣市 ID
+const REGION_GROUPS: Record<string, number[]> = {
+  '北部': [1, 2, 3, 4, 5, 6, 20],     // 台北, 基隆, 新北, 新竹市, 新竹縣, 桃園, 宜蘭
+  '中部': [7, 8, 10, 11, 14],         // 苗栗, 台中, 彰化, 南投, 雲林
+  '南部': [12, 13, 15, 17, 19],       // 嘉義市, 嘉義縣, 台南, 高雄, 屏東
+  '東部': [21, 22, 23, 24, 25],       // 台東, 花蓮, 澎湖, 金門, 連江（含離島）
+  '離島': [23, 24, 25],               // 澎湖, 金門, 連江（單獨取離島三縣）
+};
+
 // 22 個縣市：名稱 → 8891 地區 ID
 const REGION_LOOKUP: Record<string, number> = {
   '台北市': 1, '台北': 1,
@@ -262,10 +302,16 @@ cli({
     // 車齡（相對於當年）— 更口語的年份輸入
     { name: 'max-age', type: 'int', help: '車齡上限（年）。例：--max-age 3 = 3 年以內。與 --year-from/to 互斥' },
     { name: 'min-age', type: 'int', help: '車齡下限（年）。例：--min-age 1 --max-age 3 = 1~3 年' },
-    // 地區（中文縣市名，逗號分隔多選）
-    { name: 'region', type: 'string', help: '地區：中文縣市名，逗號分隔多選，例：台北,台中,高雄' },
-    // 個人自售
+    // 地區（中文縣市名或分組名，逗號分隔多選）
+    { name: 'region', type: 'string', help: '地區：中文縣市名或分組（北部/中部/南部/東部/離島），逗號多選，例：北部,台南' },
+    // 車色
+    { name: 'color', type: 'string', help: '車色：白/紅/銀/灰/黑/黃/橙/綠/藍/紫/棕/粉 或英文，逗號多選' },
+    // Toggle flags
     { name: 'personal-only', type: 'bool', default: false, help: '只看個人自售（預設含車商）' },
+    { name: 'audit-only', type: 'bool', default: false, help: '只看 8891 認證車 (report=1)' },
+    { name: 'premium-only', type: 'bool', default: false, help: '只看 8891 嚴選 (yx=1)' },
+    { name: 'recent-only', type: 'bool', default: false, help: '只看最新刊登 (inweek=1，約 7 天內)' },
+    { name: 'has-video', type: 'bool', default: false, help: '只看有影片看車的車輛' },
     // 車種 / 變速 / 驅動 / 車門 / 座位
     { name: 'body', type: 'string', help: '車種：轎車/休旅車/貨車/吉普車/其他，或 sedan/suv/truck/jeep，逗號多選' },
     { name: 'transmission', type: 'string', help: '變速：手排/自排/自手排/手自排，或 manual/automatic/amt/tiptronic，逗號多選' },
@@ -402,22 +448,42 @@ cli({
       params.push(`g=${lo}_${hi}`);
     }
 
-    // 地區（逗號分隔中文名 → r[]=N 多個）
+    // 地區（逗號分隔 → 支援縣市名 或 北部/中部/南部/東部/離島 分組）
     if (kwargs.region) {
       const names = String(kwargs.region).split(',').map((s) => s.trim()).filter(Boolean);
+      const collectedIds = new Set<number>();
       for (const name of names) {
+        if (name in REGION_GROUPS) {
+          // 分組：展開成多個縣市 ID
+          for (const id of REGION_GROUPS[name]) collectedIds.add(id);
+          continue;
+        }
         const id = REGION_LOOKUP[name];
         if (id == null) {
           throw new Error(
-            `Unknown region: "${name}". Valid: ${Object.keys(REGION_LOOKUP).filter((k) => !/^.{2}$/.test(k)).join(', ')}`,
+            `Unknown region: "${name}". Valid groups: 北部/中部/南部/東部/離島 ` +
+            `or 縣市: ${Object.keys(REGION_LOOKUP).filter((k) => !/^.{2}$/.test(k)).join(', ')}`,
           );
         }
-        params.push(`r[]=${id}`);
+        collectedIds.add(id);
+      }
+      for (const id of collectedIds) params.push(`r[]=${id}`);
+    }
+
+    // 車色 color[]=N
+    if (kwargs.color) {
+      for (const s of String(kwargs.color).split(',').map((x) => x.trim()).filter(Boolean)) {
+        params.push(`color[]=${resolveColor(s)}`);
       }
     }
 
+    // Toggle flags
     if (kwargs['personal-only']) params.push('personal=1');
     if (kwargs['in-store-only']) params.push('exsits=1');
+    if (kwargs['audit-only']) params.push('report=1');
+    if (kwargs['premium-only']) params.push('yx=1');
+    if (kwargs['recent-only']) params.push('inweek=1');
+    if (kwargs['has-video']) params.push('video=1');
 
     const baseQuery = params.join('&');
     const rows: any[] = [];
