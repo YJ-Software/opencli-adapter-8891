@@ -28,6 +28,25 @@ opencli list | grep 8891
 cd ~/.opencli/clis/8891 && git pull
 ```
 
+### 關於 TypeScript 警告
+
+安裝後執行 `opencli list` 時，可能會看到以下警告：
+
+```
+⚠  Ignoring TypeScript adapter ~/.opencli/clis/8891/detail.ts — .ts adapters are no longer loaded.
+⚠  Ignoring TypeScript adapter ~/.opencli/clis/8891/electric.ts — .ts adapters are no longer loaded.
+⚠  Ignoring TypeScript adapter ~/.opencli/clis/8891/list.ts — .ts adapters are no longer loaded.
+```
+
+**這不影響功能** — opencli 會忽略 `.ts` 檔，實際載入的是同目錄下的 `.js` 檔。如果想消除警告，刪除 `.ts` 原始檔即可：
+
+```bash
+cd ~/.opencli/clis/8891
+rm -f list.ts detail.ts electric.ts
+```
+
+> 💡 `.ts` 是原始碼，僅供需要修改 adapter 邏輯時使用。若不需要編輯原始碼，刪除後完全不影響使用。日後需要時可透過 `git checkout -- *.ts` 還原。
+
 ### 編輯 .ts 原始碼後重新建置
 
 若修改了 `list.ts` / `detail.ts` / `electric.ts`，需重新建置：
