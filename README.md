@@ -12,7 +12,7 @@ npm install -g @jackwener/opencli
 opencli doctor    # 確認 daemon 和 Browser Bridge 擴充功能已連線
 
 # 2. 一行安裝 — 直接 clone 到 opencli 的 adapter 目錄
-git clone https://github.com/bareck/opencli-adapter-8891.git ~/.opencli/clis/8891
+git clone https://github.com/YJ-Software/opencli-adapter-8891.git ~/.opencli/clis/8891
 
 # 3. 驗證 — 應該看到 2 個命令，且沒有「Ignoring TypeScript adapter」警告
 opencli list | grep 8891

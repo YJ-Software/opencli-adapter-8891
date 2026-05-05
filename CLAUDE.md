@@ -26,7 +26,7 @@
     └── .gitignore         *.db *.db-wal *.db-shm (DB files stay local)
 ```
 
-**Install**: `git clone https://github.com/bareck/opencli-adapter-8891.git ~/.opencli/clis/8891`
+**Install**: `git clone https://github.com/YJ-Software/opencli-adapter-8891.git ~/.opencli/clis/8891`
 **Update**: `cd ~/.opencli/clis/8891 && git pull`
 **Rebuild after edit**: `npm install && npm run build`
 
