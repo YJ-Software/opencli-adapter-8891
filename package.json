@@ -4,9 +4,9 @@
   "type": "module",
   "description": "Build pipeline for the 8891 OpenCLI adapter suite",
   "scripts": {
-    "build": "tsc -p tsconfig.build.json ; cp _dist/list.js _dist/detail.js _dist/electric.js . && rm -rf _dist",
+    "build": "tsc -p tsconfig.build.json ; cp _dist/list.js _dist/detail.js . && rm -rf _dist",
     "install-local": "echo 'No need — if you cloned to ~/.opencli/clis/8891/, files are already in place. Just run: npm run build'",
-    "clean": "rm -f list.js detail.js electric.js && rm -rf _dist"
+    "clean": "rm -f list.js detail.js && rm -rf _dist"
   },
   "devDependencies": {
     "typescript": "^5.6.0",

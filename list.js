@@ -281,6 +281,7 @@ cli({
     name: 'list',
     description: '8891 汽車 - 通用列表（支援燃料/價格/是否在店篩選）',
     domain: 'auto.8891.com.tw',
+    access: 'read',
     strategy: Strategy.COOKIE,
     browser: true,
     args: [

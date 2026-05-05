@@ -12,7 +12,6 @@
 (repo root = ~/.opencli/clis/8891/ after git clone)
 ├── list.ts / list.js      28 filter flags, source + compiled
 ├── detail.ts / detail.js  /usedauto-infos-{id}.html, DOM extraction
-├── electric.ts / electric.js  Back-compat shortcut (power=4)
 ├── brands.json            66 brands x 870 kinds lookup (generated, 110 KB)
 ├── package.json           npm scripts: build / clean
 ├── tsconfig.build.json    tsc config
@@ -123,7 +122,7 @@ This broke our adapter pack once when opencli auto-upgraded from v1.7.0 (which s
 | `package.json` | npm scripts: `build`, `install-local`, `clean` |
 | `tsconfig.build.json` | tsc config — ESM / es2022 / resolveJsonModule / skipLibCheck |
 | `_dist/` | Build intermediate (gitignored) |
-| `list.js` / `detail.js` / `electric.js` | Build outputs, **committed** so consumers don't need tsc |
+| `list.js` / `detail.js` | Build outputs, **committed** so consumers don't need tsc |
 
 **Build:** `npm install && npm run build`
 - tsc compiles .ts -> `_dist/*.js`
@@ -131,7 +130,7 @@ This broke our adapter pack once when opencli auto-upgraded from v1.7.0 (which s
 - Cleans `_dist/`
 
 **Install to local runtime:** `npm run install-local`
-- `cp list.js detail.js electric.js brands.json ~/.opencli/clis/8891/`
+- `cp list.js detail.js brands.json ~/.opencli/clis/8891/`
 - `cp -r db/. ~/.opencli/db/`
 
 **tsc emits type warnings** about `@jackwener/opencli/registry` and `node:fs` being "not found" — these are cosmetic (module resolution paths aren't configured for these). The `.js` output is correct and runs fine. Build script uses `;` (not `&&`) so non-zero tsc exit code doesn't break the copy step.
@@ -141,6 +140,16 @@ This broke our adapter pack once when opencli auto-upgraded from v1.7.0 (which s
 - **`.ts` = source of truth.** Edit it, then run `npm run build`.
 - **`.js` = what opencli actually loads.** Committed so `git clone + cp` works without requiring Node/tsc at install time.
 - `_dist/` and `node_modules/` are gitignored.
+
+### Required `access` field (opencli runtime check)
+
+Every `cli({...})` declaration must include `access: 'read' | 'write'`. Loading fails otherwise:
+
+```
+Failed to load module .../detail.js: Command 8891/detail must declare access: 'read' | 'write'
+```
+
+Both 8891 adapters (`list`, `detail`) are `access: 'read'` — they only read public listing/detail pages. Use `'write'` only for adapters that mutate remote state (post, edit, delete). Place the field right after `domain:` for consistency.
 
 ### Discovery path reference
 

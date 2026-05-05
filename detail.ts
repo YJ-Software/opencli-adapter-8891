@@ -23,6 +23,7 @@ cli({
   name: 'detail',
   description: '8891 汽車 - 單一車輛詳情（規格/配備/照片/賣家）',
   domain: 'auto.8891.com.tw',
+  access: 'read',
   strategy: Strategy.COOKIE,
   browser: true,
   args: [
