@@ -233,16 +233,16 @@ opencli 8891 list --sort price-asc --limit 20
 opencli 8891 list --brand tesla --sort year-desc --limit 10
 ```
 
-### 「超級組合」 — 同時啟用 10 個篩選條件
+### 「超級組合」 — 同時啟用 8 個篩選條件
 
 ```bash
 opencli 8891 list \
-  --region 北部 --power 純電 --color 白,銀 --max-age 3 \
-  --max-price 200 --seats 5 --audit-only --has-video --in-store-only \
+  --region 北部 --power 純電 --color 白,黑 --max-age 10 \
+  --max-price 200 --audit-only --in-store-only --has-video \
   --limit 5
 ```
 
-回傳結果（截至 2026-04）：2 輛白色 Ford Mustang Mach-E，位於新北市，2023 年款，約 143 萬。
+回傳結果（截至 2026-05）：5 輛白／黑色純電車，包含 Tesla Model 3、Audi e-tron、M-Benz EQE，價格 95–169 萬。
 
 ---
 
